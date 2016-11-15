@@ -9,10 +9,13 @@
 Run Ubuntu (latest)  
 `docker pull ubuntu`  
 `docker images`  
-`docker run -it ubuntu bash`  
+`docker run -v /c/Users/vshal/Documents:/data -it ubuntu bash`  
 `exit`  
 `docker ps -l`  
-`docker exec -v /c/Users/vshal/Documents:/data -it 087d63d5be56 bash`  
+`docker exec -it f4e7a15eec88 bash`  
+`apt-get update`  
+`apt-get install curl`  
+`apt-get install mc`  
 `apt-get install cpanminus`
 `apt-get install liblwp-protocol-https-perl`  
 `apt-get install libcgi-pm-perl`  
@@ -22,8 +25,9 @@ Run Ubuntu (latest)
 `mkdir out`  
 `perl SMN_downloater.pl url_input.txt`  
 `exit`  
-To create an image with changes in perl configuration:
+To create an image with this changes in perl configuration:  
 `docker ps -l`  
+`docker stop f4e7a15eec88`  
 `docker commit f4e7a15eec88 ubuntu:baseperl`  
 `docker images`  
 
