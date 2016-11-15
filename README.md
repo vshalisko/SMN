@@ -11,10 +11,10 @@ Download and run Ubuntu image (latest)
 `docker images`  
 `docker run -v /c/Users/vshal/Documents:/data -it ubuntu bash`  
 `exit`  
-Enter the running Ubuntu container again
+Enter the running Ubuntu container again  
 `docker ps -l`  
 `docker exec -it f4e7a15eec88 bash`  
-Install some important stuff and required perl modules (perl itself is already available as a part of Ubuntu)
+Install some important stuff and required perl modules (perl itself is already available as a part of Ubuntu)  
 `apt-get update`  
 `apt-get install curl`  
 `apt-get install mc`  
@@ -23,10 +23,10 @@ Install some important stuff and required perl modules (perl itself is already a
 `apt-get install libcgi-pm-perl`  
 `apt-get install libwww-mechanize-perl`  
 `cpanm URI::Heuristic`  
-Change directory to /data shared with host machine, where the SMN_downloader.pl script is located 
+Change directory to /data shared with host machine, where the SMN_downloader.pl script is located  
 `cd /data`  
 `mkdir out`  
-Run script
+Run script  
 `perl SMN_downloater.pl url_input.txt`  
 To create an image with this changes in perl configuration commit the image with changes  
 `exit`  
