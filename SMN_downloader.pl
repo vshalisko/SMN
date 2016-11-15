@@ -8,14 +8,17 @@
 ##      Script for climatological normal data download from 
 ##      Mexican Meteorological Service (SMN) website
 ##      http://smn.cna.gob.mx/es/component/content/article?id=42
-##      (Normales Climatologicas por Estado
+##      (Normales Climatologicas por Estado)
 ##  Usage:
 ##	1. Make list of index page URLs (normally one URL for state, like
-##	   http://smn.cna.gob.mx/tools/RESOURCES/normales_climatologicas_catalogo/cat_col.html
+##	   http://smn.cna.gob.mx/tools/RESOURCES/normales_climatologicas_catalogo/cat_col.html)
 ##         and store this URLs in text file url_input.txt, each URL
 ##         in separate line
 ##      2. Create output subdirectory "out"
 ##      3. Run script as perl SMN_downloader.pl url_input.txt
+##      4. List of URLs will be stored in file urts_list.txt
+##      5. SMN text files will be stored in "out" directory, with preffix 
+##         related to the original data folder in SMN website 
 ##     
 ##---------------------------------------------------------------------------##
 ##    
@@ -85,7 +88,7 @@ foreach my $input_url (@input_urls) {
 	for my $link ( @links ) {
 		my $abs_url = URI->new_abs($link->url,$input_url);
 		print $abs_url . "\n";
-		if ($link->url =~ /(\w+)\.(TXT|txt)/g) {
+		if ($link->url =~ /(\w+)\.(TXT|txt)/g) {   # we are interested in txt files only
 			printf OUTPUTFILE "%s, %s\n", $link->text, $abs_url;
 			push @good_links, $abs_url;
 		}
@@ -93,6 +96,7 @@ foreach my $input_url (@input_urls) {
 	close(OUTPUTFILE);
 }
 
+# download and store TXT files
 foreach my $good_link (@good_links) {
 	my $url = &trim($good_link); 
 	my $output_filename = "undefined_output.txt"; # Use general output if no output filename is defined in URL
