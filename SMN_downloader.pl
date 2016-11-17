@@ -101,7 +101,7 @@ foreach my $good_link (@good_links) {
 	my $url = &trim($good_link); 
 	my $output_filename = "undefined_output.txt"; # Use general output if no output filename is defined in URL
 	if ($url =~ /.*\/(\w+)\/(\w+\.\w+)/g) {
-		$output_filename = "out/" . $1 . "-" . $2;
+		$output_filename = "out_smn/" . $1 . "-" . $2;
 	}
 	print $output_filename . "\n";
 
