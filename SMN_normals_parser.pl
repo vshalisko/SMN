@@ -6,13 +6,15 @@
 ##      16.11.2016
 ##  Description: 
 ##      Script to extract monthly climatic normal values from separate files 
-##      and store them in separate table (tab-separated)
+##      and store them in single table (tab-separated). Values extracted 
+##      includes TMIN, TMAX, TMEAN, PREC.
 ##  Usage:
 ##      The output directory and output file should be defined in $dir 
 ##      and $output_file variables, the output file is stored in same directory
 ##      where input data is located, the input file mask list should be
 ##      stored as array in @filemask
 ##      Script can be executed by typing perl SMN_normals_parser.pl
+##      Data is supposed to have ANSI encoding.
 ##     
 ##---------------------------------------------------------------------------##
 ##    
