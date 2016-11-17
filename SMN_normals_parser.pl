@@ -40,8 +40,10 @@ sub trim {
 }
 
 my $dir = "out_smn";
-my $output_file = "_normales8110.txt";
-my @filemask = ("Normales8110-NORMAL*.txt", "Normales8110-NORMAL*.TXT");
+my $output_file = "_normales5110.txt";
+#my @filemask = ("Normales8110-NORMAL*.txt", "Normales8110-NORMAL*.TXT");
+#my @filemask = ("Normales7100-NORMAL*.txt", "Normales7100-NORMAL*.TXT");
+my @filemask = ("Normales5110-NORMAL*.txt", "Normales5110-NORMAL*.TXT");
 
 my $empty_data = "-9999\t" x 13;
 
@@ -66,7 +68,7 @@ while (<@filemask>) {
 	#search for station code and name
 	my $station_num = "-9999";
 	my $station_nom = "-9999";
-	if ($file =~ m/ESTACION:\s+(\d+)\s+([\p{L}\w\s()-+.,]+)\s+LATITUD/ism) {
+	if ($file =~ m/ESTACION:\s+(\d+)\s+([\p{L}\w\s()\-+.,]+)\s+LATITUD/ism) {
 		$station_num = $1;
 		$station_nom = $2;
 	}
