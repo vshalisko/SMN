@@ -1,0 +1,127 @@
+---
+title: "Lectura NDVI"
+author: "Viacheslav Shalsiko"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+Sys.setlocale(locale = "en_US.UTF-8")   # Nombres de meses estan en local de US
+ndvi <- read.csv("./NDVI/NAY_SanMarcos.csv")
+head(ndvi)
+
+ndvi$FECHA <- as.Date(ndvi$system.time_start,format='%b %d, %Y')
+ndvi$A <- format(ndvi$FECHA,"%Y")
+ndvi$M <- format(ndvi$FECHA,"%m")
+ndvi$D <- format(ndvi$FECHA,"%j")
+head(ndvi)
+```
+
+```{r}
+plot(x=ndvi$FECHA, y=ndvi$NDVI, type="l", col="brown")
+
+plot(x=ndvi$M, y=ndvi$NDVI)
+plot(x=ndvi$D, y=ndvi$NDVI)
+```
+
+```{r}
+## Funciones elementales
+averaging_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  if (nna >= 2) {
+    return(mean(d, ...))  
+  } else {
+    return(NA)
+  }
+}
+
+sd_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  if (nna >= 2) {
+    return(sd(d, ...))  
+  } else {
+    return(NA)
+  }
+}
+
+n_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  return(nna)
+}
+
+promedios_locales_periodo <- function(df) {
+  ## calculo de promedios y sumas mensuales con centro en la fecha por un periodo de varios años
+  year_start <- as.numeric(format(min(df$FECHA),"%Y"))
+  year_end <- as.numeric(format(max(df$FECHA),"%Y"))
+  year_diff <- year_end - year_start
+  print(paste("Periodo de años:",year_diff))
+  
+  year_day_sequence <- seq(1,365,5)
+  
+  locales <- data.frame(D=numeric(),
+                        NDVI=numeric(),
+                        NDVI_SD=numeric(),
+                        NDVI_N=numeric()
+                        )
+  for (i in 1:length(year_day_sequence)) {
+    ## generar subconjunto de datos para calculo de promedios, sumas y otros datos en periodo
+    day_data <- data.frame()
+    for (j in 1:year_diff) {
+      day_start <- as.Date(paste0(year_start + j - 1,"-01-01"),"%Y-%m-%d") + year_day_sequence[i] - 15
+      day_end <- as.Date(paste0(year_start + j - 1,"-01-01"),"%Y-%m-%d") + year_day_sequence[i] + 15
+      if (dim(day_data)[1] < 1) {
+        day_data <- df[df$FECHA > day_start & df$FECHA <= day_end,]  
+      } else {
+        day_data_new <- df[df$FECHA > day_start & df$FECHA <= day_end,]
+        day_data <- rbind(day_data, day_data_new)
+      }
+    }
+    
+    day_ndvi <- averaging_fun(day_data$NDVI, na.rm = TRUE)
+    day_ndvi_sd <- sd_fun(day_data$NDVI, na.rm = TRUE)
+    day_ndvi_n <- n_fun(day_data$NDVI, na.rm = TRUE)
+    
+    day_line <- data.frame(D=year_day_sequence[i],
+                           NDVI=day_ndvi,
+                           NDVI_SD=day_ndvi_sd,
+                           NDVI_N=day_ndvi_n)
+    locales <- rbind(locales, day_line)
+  }
+  
+  head(locales)
+  return(locales)
+}
+```
+
+```{r}
+draw_plot_t <- function(x, y, ysd, yn, color, title) {
+    y_sup <- y + 1.96 * ysd / sqrt(yn)
+    y_inf <- y - 1.96 * ysd / sqrt(yn)
+    
+    plot(x = x, y = y, 
+     col=color, type="l", cex=0.5,
+     ylim=c(min(y_inf, na.rm = TRUE),
+            max(y_sup, na.rm = TRUE)),
+     main=title)
+
+  lines(x = as.numeric(x),
+      y = y_sup, 
+      col=color, type="l", lty=2)
+  lines(x = as.numeric(x),
+      y= y_inf, 
+      col=color, type="l", lty=2)
+  #polygon(c(x, rev(x)), c(y_sup, rev(y_inf)),
+  #      col = "#6BD7AF")
+}
+```
+
+```{r}
+ndvi_locales <- promedios_locales_periodo(ndvi)
+head(ndvi_locales)
+draw_plot_t(x=ndvi_locales$D,
+            y=ndvi_locales$NDVI,
+            ysd=ndvi_locales$NDVI_SD,
+            yn=ndvi_locales$NDVI_N,
+            color="brown", title="NDVI (2013-2022)")
+```
+
