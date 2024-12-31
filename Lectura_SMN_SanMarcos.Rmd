@@ -411,7 +411,7 @@ draw_plot_t <- function(x, y, ysd, yn, color, title) {
 ## Grafica acumulada de tendencia anual de un periodo de referencia
 
 ```{r}
-datos_corto <- smn_data_df[smn_data_df$ESTACION == estacion
+datos_corto <- smn_data_df[smn_data_df$ESTACION == as.numeric(estacion)
                           & smn_data_df$FECHA >= as.Date("1980-01-01")
                           & smn_data_df$FECHA < as.Date("2011-01-01"), ]
 
@@ -476,31 +476,30 @@ draw_plot_t(x=t_mens_locales_periodo_corto$D,
 
 
 ```{r}
-datos_1003 <- smn_data_df[smn_data_df$ESTACION == estacion
+datos_corto2 <- smn_data_df[smn_data_df$ESTACION == as.numeric(estacion)
                           & smn_data_df$FECHA >= as.Date("1970-01-01"), ]
-dim(datos_1003)
+dim(datos_corto2)
 
-t_mens_1003 <- promedios_mensuales_t(datos_1003)
+t_mens_corto2 <- promedios_mensuales_t(datos_corto2)
 
-head(t_mens_1003)
-plot(x=as.numeric(t_mens_1003$M),y=t_mens_1003$TMIN, col="blue")
-plot(x=as.numeric(t_mens_1003$M),y=t_mens_1003$TMAX, col="red")
+head(t_mens_corto2)
+plot(x=as.numeric(t_mens_corto2$M),y=t_mens_corto2$TMIN, col="blue")
+plot(x=as.numeric(t_mens_corto2$M),y=t_mens_corto2$TMAX, col="red")
 
-p_mens_1003 <- sumas_mensuales_p(datos_1003)
+p_mens_corto2 <- sumas_mensuales_p(datos_corto2)
 
-head(p_mens_1003)
-plot(x=as.numeric(p_mens_1003$M),y=p_mens_1003$PREC, col="black")
-plot(x=as.numeric(p_mens_1003$M),y=p_mens_1003$EVAP, col="darkgreen")
+head(p_mens_corto2)
+plot(x=as.numeric(p_mens_corto2$M),y=p_mens_corto2$PREC, col="black")
+plot(x=as.numeric(p_mens_corto2$M),y=p_mens_corto2$EVAP, col="darkgreen")
 
-t_mens_locales_1003 <- promedios_locales_t(datos_1003)
-head(t_mens_locales_1003)
+t_mens_locales_corto2 <- promedios_locales_t(datos_corto2)
+head(t_mens_locales_corto2)
 
-plot(x=t_mens_locales_1003$FECHA,y=t_mens_locales_1003$TMIN, col="blue", type="l")
-plot(x=t_mens_locales_1003$FECHA,y=t_mens_locales_1003$TMAX, col="red", type="l")
+plot(x=t_mens_locales_corto2$FECHA,y=t_mens_locales_corto2$TMIN, col="blue", type="l")
+plot(x=t_mens_locales_corto2$FECHA,y=t_mens_locales_corto2$TMAX, col="red", type="l")
 
-plot(x=as.numeric(t_mens_locales_1003$D),y=t_mens_locales_1003$TMIN, col="blue", type="p", cex=0.5)
-plot(x=as.numeric(t_mens_locales_1003$D),y=t_mens_locales_1003$TMAX, col="red", type="p", cex=0.5)
+plot(x=as.numeric(t_mens_locales_corto2$D),y=t_mens_locales_corto2$TMIN, col="blue", type="p", cex=0.5)
+plot(x=as.numeric(t_mens_locales_corto2$D),y=t_mens_locales_corto2$TMAX, col="red", type="p", cex=0.5)
 ```
-
 
 
