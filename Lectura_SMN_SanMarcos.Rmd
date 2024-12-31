@@ -1,0 +1,500 @@
+---
+title: "Lectura SMN"
+author: "Viacheslav Shalsiko"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(sp)
+library(rworldmap)
+library(rworldxtra)
+```
+
+
+```{r}
+files <- list.files(path = "../Base_diarios_TXT", pattern = "^dia18080.*\\.txt$")
+files
+file_name <- paste0("../Base_diarios_TXT/",files[1])
+```
+
+
+```{r}
+reader_day_table <- function (name, skip) {
+  data <- read.delim(name, 
+                     skip=skip,
+                     header=FALSE,
+                     na.strings = "NULO")
+  data_colnames <- c("FECHA","PREC","EVAP","TMAX","TMIN")
+  names(data) <- data_colnames
+  data$FECHA <- as.Date(data$FECHA,'%Y-%m-%d')
+  return(data)
+}
+
+reader_day_table_header <- function (name) {
+  f = readLines(name)
+  ## determinar numero de linea de cada grupo de datos de interes
+  ln_estacion <- grep("^\\s*ESTACIÓN\\s*:", f)
+  ln_nombre <- grep("^\\s*NOMBRE\\s*:", f)
+  ln_situacion <- grep("^\\s*SITUACIÓN\\s*:", f)
+  ln_cveomm <- grep("^\\s*CVE-OMM\\s*:", f) 
+  ln_latitud <- grep("^\\s*LATITUD\\s*:", f)
+  ln_longitud <- grep("^\\s*LONGITUD\\s*:", f)
+  ln_altitud <- grep("^\\s*ALTITUD\\s*:", f)
+  ln_datos <- grep("^FECHA\\s*PRECIP\\s*EVAP\\s*TMAX\\s*TMIN", f)
+  
+  ## buscar los valores de interes en las lineas seleccionadas
+  estacion <- sub("(^\\s*ESTACIÓN\\s*:\\s*)([0-9]+)(\\s*$)", "\\2", f[ln_estacion],perl=TRUE)
+  nombre <- sub("(^\\s*NOMBRE\\s*:\\s*)([A-ZÁÓÚÉÍÑ0-9(). ]+?)(\\s*$)", "\\2", f[ln_nombre],perl=TRUE)
+  situacion <- sub("(^\\s*SITUACIÓN\\s*:\\s*)([A-Z]+?)(\\s*$)", "\\2", f[ln_situacion],perl=TRUE)
+  cveomm <- sub("(^\\s*CVE-OMM\\s*:\\s*)([0-9]*)(\\s*$)", "\\2", f[ln_cveomm],perl=TRUE)
+  latitud <- sub("(^\\s*LATITUD\\s*:\\s*)([0-9-.]*)(\\s*°\\s*$)", "\\2", f[ln_latitud],perl=TRUE)
+  longitud <- sub("(^\\s*LONGITUD\\s*:\\s*)([0-9-.]*)(\\s*°\\s*$)", "\\2", f[ln_longitud],perl=TRUE)
+  altitud <- sub("(^\\s*ALTITUD\\s*:\\s*)([0-9-.]*)(\\s*msnm\\s*$)", "\\2", f[ln_altitud],perl=TRUE)
+  
+  ## colocar resultados en una lista
+  resultado <- list()
+  resultado$datos <- as.numeric(ln_datos)
+  resultado$estacion <- estacion
+  resultado$nombre <- nombre
+  resultado$situacion <- situacion
+  resultado$cveomm <- cveomm
+  resultado$latitud <- as.numeric(latitud)
+  resultado$longitud <- as.numeric(longitud)
+  resultado$altitud <- as.numeric(altitud)
+
+  ## estraer tabla de datos y agregar a la estructura de datos
+  datos <- reader_day_table(name, as.numeric(ln_datos) + 1)
+  resultado$datos <- datos
+    
+  resultado
+}
+```
+
+```{r}
+## estructura de datos para almacenar conjunto de puntos de estaciones SMN
+smn_points_df <- data.frame(latitud=numeric(),
+                            longitud=numeric(),
+                            altitud=numeric(),
+                            estacion=numeric(),
+                            nombre=character())
+
+## estructura de datos para almacenar lecturas diarias en todas estaciones SMN
+smn_data_df <- data.frame(ESTACION=numeric(),
+                          FECHA=as.Date(character()),
+                          PREC=numeric(),
+                          EVAP=numeric(),
+                          TMAX=numeric(),
+                          TMIN=numeric())
+
+## llenar las estructuras de datos de puntos y de lecturas diarias
+for (i in 1:length(files)) {
+  ## leer archivo de datos
+  
+  header <- reader_day_table_header(file_name)
+  print(paste("Procesando:",as.character(header$estacion),"-",as.character(header$nombre)))
+  print(dim(header$datos))
+  
+  ## agregar linea con info sobre el punto
+  smn_points_df <- rbind(smn_points_df,
+                      data.frame(latitud=as.numeric(header$latitud),
+                                 longitud=as.numeric(header$longitud),
+                                 altitud=as.numeric(header$altitud),
+                                 estacion=as.numeric(header$estacion),
+                                 nombre=as.character(header$nombre)))
+  ## agregar el segmento de registros
+  data_fragment <- cbind(data.frame(
+                         ESTACION=rep(as.numeric(header$estacion),dim(header$datos)[1])),
+                         header$datos)
+  smn_data_df <- rbind(smn_data_df,
+                       data_fragment)
+}
+```
+
+```{r}
+knitr::kable(smn_points_df)
+
+myCRS=CRS("+init=epsg:4326")
+smn_points <- SpatialPointsDataFrame(coords=smn_points_df[,c("longitud","latitud")],
+                                     data=smn_points_df, proj4string=myCRS)
+```
+
+## Ubicación de la estación elegida
+
+```{r}
+world <- getMap(resolution = "high")
+plot(world, xlim = c(-110,-82), ylim = c(12,32), axes = TRUE)
+plot(smn_points, col = "red", add = TRUE)
+```
+
+
+```{r}
+smn_data_df$A <- format(smn_data_df$FECHA,"%Y")
+smn_data_df$M <- format(smn_data_df$FECHA,"%m")
+smn_data_df$D <- format(smn_data_df$FECHA,"%j")
+dim(smn_data_df)
+head(smn_data_df)
+str(smn_data_df)
+```
+
+```{r}
+## Funciones elementales
+averaging_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  if (nna >= 15) {
+    return(mean(d, ...))  
+  } else {
+    return(NA)
+  }
+}
+
+sd_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  if (nna >= 15) {
+    return(sd(d, ...))  
+  } else {
+    return(NA)
+  }
+}
+
+## Nota: para precipitacion debemos usar gamma distr 
+sum_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  if (nna >= 28) {
+    return(sum(d, ...))  
+  } else {
+    return(NA)
+  }
+}
+
+n_fun <- function(d, ...) {
+  nna <- sum(!is.na(d))
+  return(nna)
+}
+
+## Funciones de subtotales
+promedios_mensuales_t <- function(df) {
+  ## calculo de promedios, sd, n mensuales
+  subtotales <- aggregate(cbind(TMIN,TMAX) ~ M + A + ESTACION, 
+                        data=df,
+                        FUN = averaging_fun,
+                        na.action = na.pass, na.rm = TRUE)
+  subtotales_sd <- aggregate(cbind(TMIN,TMAX) ~ M + A + ESTACION, 
+                        data=df,
+                        FUN = sd_fun,
+                        na.action = na.pass, na.rm = TRUE)
+  subtotales_n <- aggregate(cbind(TMIN,TMAX) ~ M + A + ESTACION, 
+                        data=df,
+                        FUN = n_fun,
+                        na.action = na.pass, na.rm = TRUE)
+  names(subtotales_sd) <- c("M","A","ESTACION","TMIN_SD","TMAX_SD")
+  subtotales <- cbind(subtotales, subtotales_sd[,c("TMIN_SD","TMAX_SD")])
+  names(subtotales_n) <- c("M","A","ESTACION","TMIN_N","TMAX_N")
+  subtotales <- cbind(subtotales, subtotales_n[,c("TMIN_N","TMAX_N")])
+  head(subtotales)
+  return(subtotales)
+}
+
+sumas_mensuales_p <- function(df) {
+  ## calculo de sumas, sd, n mensuales
+  subtotales <- aggregate(cbind(PREC,EVAP) ~ M + A + ESTACION, 
+                        data=df,
+                        FUN = sum_fun,
+                        na.action = na.pass, na.rm = TRUE)
+  subtotales_sd <- aggregate(cbind(PREC,EVAP) ~ M + A + ESTACION, 
+                        data=df,
+                        FUN = sd_fun,
+                        na.action = na.pass, na.rm = TRUE)
+  subtotales_n <- aggregate(cbind(PREC,EVAP) ~ M + A + ESTACION, 
+                        data=df,
+                        FUN = n_fun,
+                        na.action = na.pass, na.rm = TRUE)
+  names(subtotales_sd) <- c("M","A","ESTACION","PREC_SD","EVAP_SD")
+  subtotales <- cbind(subtotales, subtotales_sd[,c("PREC_SD","EVAP_SD")])
+  names(subtotales_n) <- c("M","A","ESTACION","PREC_N","EVAP_N")
+  subtotales <- cbind(subtotales, subtotales_n[,c("PREC_N","EVAP_N")])
+  head(subtotales)
+  return(subtotales)
+}
+
+## Funciones de vecindad
+promedios_locales_t <- function(df) {
+  ## calculo de promedios mensuales con centro en la fecha
+  day_sequence <- seq.Date(from=min(df$FECHA), to=max(df$FECHA), by=5)
+  locales <- data.frame(FECHA=as.Date(character()),
+                        TMIN=numeric(),
+                        TMIN_SD=numeric(),
+                        TMIN_N=numeric(),
+                        TMAX=numeric(),
+                        TMAX_SD=numeric(),
+                        TMAX_N=numeric()
+                        )
+  
+  for (i in 1:length(day_sequence)) {
+    day_start <- day_sequence[i] - 15
+    day_end <- day_sequence[i] + 15
+    day_data <- df[df$FECHA > day_start & df$FECHA <= day_end,]
+    
+    day_tmin <- averaging_fun(day_data$TMIN, na.rm = TRUE)
+    day_tmin_sd <- sd_fun(day_data$TMIN, na.rm = TRUE)
+    day_tmin_n <- n_fun(day_data$TMIN, na.rm = TRUE)
+    day_tmax <- averaging_fun(day_data$TMAX, na.rm = TRUE)
+    day_tmax_sd <- sd_fun(day_data$TMAX, na.rm = TRUE)
+    day_tmax_n <- n_fun(day_data$TMAX, na.rm = TRUE)
+    
+    day_line <- data.frame(FECHA=day_sequence[i],
+                           TMIN=day_tmin,
+                           TMIN_SD=day_tmin_sd,
+                           TMIN_N=day_tmin_n,
+                           TMAX=day_tmax,
+                           TMAX_SD=day_tmax_sd,
+                           TMAX_N=day_tmax_n)
+    locales <- rbind(locales, day_line)
+  }
+  
+  locales$A <- format(locales$FECHA,"%Y")
+  locales$M <- format(locales$FECHA,"%m")
+  locales$D <- format(locales$FECHA,"%j")
+  head(locales)
+  return(locales)
+}
+
+
+sumas_locales_p <- function(df) {
+  ## calculo de sumas mensuales con centro en la fecha
+  day_sequence <- seq.Date(from=min(df$FECHA), to=max(df$FECHA), by=5)
+  locales <- data.frame(FECHA=as.Date(character()),
+                        PREC=numeric(),
+                        PREC_SD=numeric(),
+                        PREC_N=numeric(),
+                        EVAP=numeric(),
+                        EVAP_SD=numeric(),
+                        EVAP_N=numeric()
+                        )
+  
+  for (i in 1:length(day_sequence)) {
+    day_start <- day_sequence[i] - 15
+    day_end <- day_sequence[i] + 15
+    day_data <- df[df$FECHA > day_start & df$FECHA <= day_end,]
+    
+    day_prec <- sum_fun(day_data$PREC, na.rm = TRUE)
+    day_prec_sd <- sd_fun(day_data$PREC, na.rm = TRUE)
+    day_prec_n <- n_fun(day_data$PREC, na.rm = TRUE)
+    day_evap <- averaging_fun(day_data$EVAP, na.rm = TRUE)
+    day_evap_sd <- sd_fun(day_data$EVAP, na.rm = TRUE)
+    day_evap_n <- n_fun(day_data$EVAP, na.rm = TRUE)
+    
+    day_line <- data.frame(FECHA=day_sequence[i],
+                           PREC=day_prec,
+                           PREC_SD=day_prec_sd,
+                           PREC_N=day_prec_n,
+                           EVAP=day_evap,
+                           EVAP_SD=day_evap_sd,
+                           EVAP_N=day_evap_n)
+    locales <- rbind(locales, day_line)
+  }
+  
+  locales$A <- format(locales$FECHA,"%Y")
+  locales$M <- format(locales$FECHA,"%m")
+  locales$D <- format(locales$FECHA,"%j")
+  head(locales)
+  return(locales)
+}
+
+
+promedios_locales_periodo <- function(df) {
+  ## calculo de promedios y sumas mensuales con centro en la fecha por un periodo de varios años
+  year_start <- as.numeric(format(min(df$FECHA),"%Y"))
+  year_end <- as.numeric(format(max(df$FECHA),"%Y"))
+  year_diff <- year_end - year_start
+  print(paste("Periodo de años:",year_diff))
+  
+  year_day_sequence <- seq(1,365,5)
+  
+  locales <- data.frame(D=numeric(),
+                        TMIN=numeric(),
+                        TMIN_SD=numeric(),
+                        TMIN_N=numeric(),
+                        TMAX=numeric(),
+                        TMAX_SD=numeric(),
+                        TMAX_N=numeric(),
+                        PREC=numeric(),
+                        PREC_SD=numeric(),
+                        PREC_N=numeric(),
+                        EVAP=numeric(),
+                        EVAP_SD=numeric(),
+                        EVAP_N=numeric()
+                        )
+  
+  for (i in 1:length(year_day_sequence)) {
+    ## generar subconjunto de datos para calculo de promedios, sumas y otros datos en periodo
+    day_data <- data.frame()
+    for (j in 1:year_diff) {
+      day_start <- as.Date(paste0(year_start + j - 1,"-01-01"),"%Y-%m-%d") + year_day_sequence[i] - 15
+      day_end <- as.Date(paste0(year_start + j - 1,"-01-01"),"%Y-%m-%d") + year_day_sequence[i] + 15
+      if (dim(day_data)[1] < 1) {
+        day_data <- df[df$FECHA > day_start & df$FECHA <= day_end,]  
+      } else {
+        day_data_new <- df[df$FECHA > day_start & df$FECHA <= day_end,]
+        day_data <- rbind(day_data, day_data_new)
+      }
+    }
+    
+    day_tmin <- averaging_fun(day_data$TMIN, na.rm = TRUE)
+    day_tmin_sd <- sd_fun(day_data$TMIN, na.rm = TRUE)
+    day_tmin_n <- n_fun(day_data$TMIN, na.rm = TRUE)
+    day_tmax <- averaging_fun(day_data$TMAX, na.rm = TRUE)
+    day_tmax_sd <- sd_fun(day_data$TMAX, na.rm = TRUE)
+    day_tmax_n <- n_fun(day_data$TMAX, na.rm = TRUE)
+    day_prec <- averaging_fun(day_data$PREC, na.rm = TRUE)
+    day_prec_sd <- sd_fun(day_data$PREC, na.rm = TRUE)
+    day_prec_n <- n_fun(day_data$PREC, na.rm = TRUE)
+    day_evap <- averaging_fun(day_data$EVAP, na.rm = TRUE)
+    day_evap_sd <- sd_fun(day_data$EVAP, na.rm = TRUE)
+    day_evap_n <- n_fun(day_data$EVAP, na.rm = TRUE)
+    
+    day_line <- data.frame(D=year_day_sequence[i],
+                           TMIN=day_tmin,
+                           TMIN_SD=day_tmin_sd,
+                           TMIN_N=day_tmin_n,
+                           TMAX=day_tmax,
+                           TMAX_SD=day_tmax_sd,
+                           TMAX_N=day_tmax_n,
+                           PREC=30*day_prec,
+                           PREC_SD=30*day_prec_sd,
+                           PREC_N=day_prec_n,
+                           EVAP=day_evap,
+                           EVAP_SD=day_evap_sd,
+                           EVAP_N=day_evap_n)
+    locales <- rbind(locales, day_line)
+  }
+  
+  #locales$A <- format(locales$FECHA,"%Y")
+  #locales$M <- format(locales$FECHA,"%m")
+  #locales$D <- format(locales$FECHA,"%j")
+  head(locales)
+  return(locales)
+}
+
+
+```
+
+```{r}
+draw_plot_t <- function(x, y, ysd, yn, color, title) {
+    y_sup <- y + 1.96 * ysd / sqrt(yn)
+    y_inf <- y - 1.96 * ysd / sqrt(yn)
+    
+    plot(x = x, y = y, 
+     col=color, type="l", cex=0.5,
+     ylim=c(min(y_inf, na.rm = TRUE),
+            max(y_sup, na.rm = TRUE)),
+     main=title)
+
+  lines(x = as.numeric(x),
+      y = y_sup, 
+      col=color, type="l", lty=2)
+  lines(x = as.numeric(x),
+      y= y_inf, 
+      col=color, type="l", lty=2)
+  #polygon(c(x, rev(x)), c(y_sup, rev(y_inf)),
+  #      col = "#6BD7AF")
+}
+```
+
+
+## Grafica acumulada de tendencia anual de un periodo de referencia
+
+```{r}
+datos_corto <- smn_data_df[smn_data_df$ESTACION == 18080
+                          & smn_data_df$FECHA >= as.Date("1980-01-01")
+                          & smn_data_df$FECHA < as.Date("2011-01-01"), ]
+
+t_mens_locales_corto <- promedios_locales_t(datos_corto)
+head(t_mens_locales_corto)
+p_mens_locales_corto <- sumas_locales_p(datos_corto)
+head(p_mens_locales_corto)
+
+
+
+draw_plot_t(x=t_mens_locales_corto$FECHA,
+            y=t_mens_locales_corto$TMIN,
+            ysd=t_mens_locales_corto$TMIN_SD,
+            yn=t_mens_locales_corto$TMIN_N,
+            color="blue", title="T min (1980-2010)")
+
+draw_plot_t(x=t_mens_locales_corto$FECHA,
+            y=t_mens_locales_corto$TMAX,
+            ysd=t_mens_locales_corto$TMAX_SD,
+            yn=t_mens_locales_corto$TMAX_N,
+            color="red", title="T max (1980-2010)")
+
+draw_plot_t(x=p_mens_locales_corto$FECHA,
+            y=p_mens_locales_corto$PREC,
+            ysd=p_mens_locales_corto$PREC_SD,
+            yn=p_mens_locales_corto$PREC_N,
+            color="black", title="P mensual (1980-2010)")
+
+draw_plot_t(x=p_mens_locales_corto$FECHA,
+            y=p_mens_locales_corto$EVAP,
+            ysd=p_mens_locales_corto$EVAP_SD,
+            yn=p_mens_locales_corto$EVAP_N,
+            color="darkgreen", title="E diaria (1980-2010)")
+```
+
+## Grafica de tendencia anual promedia de un periodo de referencia
+
+```{r}
+t_mens_locales_periodo_corto <- promedios_locales_periodo(datos_corto)
+head(t_mens_locales_periodo_corto)
+draw_plot_t(x=t_mens_locales_periodo_corto$D,
+            y=t_mens_locales_periodo_corto$TMIN,
+            ysd=t_mens_locales_periodo_corto$TMIN_SD,
+            yn=t_mens_locales_periodo_corto$TMIN_N,
+            color="blue", title="T min (1980-2010)")
+draw_plot_t(x=t_mens_locales_periodo_corto$D,
+            y=t_mens_locales_periodo_corto$TMAX,
+            ysd=t_mens_locales_periodo_corto$TMAX_SD,
+            yn=t_mens_locales_periodo_corto$TMAX_N,
+            color="red", title="T max (1980-2010)")
+draw_plot_t(x=t_mens_locales_periodo_corto$D,
+            y=t_mens_locales_periodo_corto$PREC,
+            ysd=t_mens_locales_periodo_corto$PREC_SD,
+            yn=t_mens_locales_periodo_corto$PREC_N,
+            color="black", title="P mensual (1980-2010)")
+draw_plot_t(x=t_mens_locales_periodo_corto$D,
+            y=t_mens_locales_periodo_corto$EVAP,
+            ysd=t_mens_locales_periodo_corto$EVAP_SD,
+            yn=t_mens_locales_periodo_corto$EVAP_N,
+            color="darkgreen", title="E diaria (1980-2010)")
+```
+
+
+```{r}
+datos_1003 <- smn_data_df[smn_data_df$ESTACION == 18080
+                          & smn_data_df$FECHA >= as.Date("1970-01-01"), ]
+dim(datos_1003)
+
+t_mens_1003 <- promedios_mensuales_t(datos_1003)
+
+head(t_mens_1003)
+plot(x=as.numeric(t_mens_1003$M),y=t_mens_1003$TMIN, col="blue")
+plot(x=as.numeric(t_mens_1003$M),y=t_mens_1003$TMAX, col="red")
+
+p_mens_1003 <- sumas_mensuales_p(datos_1003)
+
+head(p_mens_1003)
+plot(x=as.numeric(p_mens_1003$M),y=p_mens_1003$PREC, col="black")
+plot(x=as.numeric(p_mens_1003$M),y=p_mens_1003$EVAP, col="darkgreen")
+
+t_mens_locales_1003 <- promedios_locales_t(datos_1003)
+head(t_mens_locales_1003)
+
+plot(x=t_mens_locales_1003$FECHA,y=t_mens_locales_1003$TMIN, col="blue", type="l")
+plot(x=t_mens_locales_1003$FECHA,y=t_mens_locales_1003$TMAX, col="red", type="l")
+
+plot(x=as.numeric(t_mens_locales_1003$D),y=t_mens_locales_1003$TMIN, col="blue", type="p", cex=0.5)
+plot(x=as.numeric(t_mens_locales_1003$D),y=t_mens_locales_1003$TMAX, col="red", type="p", cex=0.5)
+```
+
+
+
