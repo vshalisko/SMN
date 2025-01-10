@@ -1,0 +1,56 @@
+---
+title: "Transformación de datos"
+author: "Viacheslav Shalsiko"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+
+```{r}
+# leer CSV
+datos <- read.csv("p_1980-2024_series.csv")
+dim(datos)
+str(datos)
+```
+
+```{r}
+# transformar a formato largo con tidyr
+library(tidyr)
+datos_largos <- pivot_longer(data = datos,
+                             cols = colnames(datos[,-1]))
+
+# corregir datos de estación (quitar X en principio de cada nombre)
+datos_largos$name <- gsub('^.', '', datos_largos$name)
+# renombrar la columna de estacion
+colnames(datos_largos)[colnames(datos_largos) == 'name'] <- "estacion"
+
+# descomponer fecha en año y mes
+datos_largos$Date <- as.Date(datos_largos$Date)
+datos_largos$year <- format(datos_largos$Date,"%Y")
+datos_largos$mes <- format(datos_largos$Date,"%m")
+datos_largos <- datos_largos[,-1]
+
+# inspeccionar datos en formato largo
+str(datos_largos)
+```
+
+```{r}
+# transformar al formato final (ancho) con tidyr
+datos_anchos <- pivot_wider(data = datos_largos,
+                            names_from = mes,
+                            values_from = value)
+
+str(datos_anchos)
+```
+
+```{r}
+# ver la tabla de resultados (primeros 20 lineas para rapidez)
+knitr::kable(datos_anchos[1:20,])
+
+# guardar CSV de resultados
+write.csv(datos_anchos, 
+          file="p_1980-2024_series_transformados.csv",
+          row.names = FALSE)
+```
+
