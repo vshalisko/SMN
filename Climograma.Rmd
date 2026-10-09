@@ -84,11 +84,11 @@ polygon(c(xd[m_super], rev(xd[m_super])),
 
 # --- 5. Rectángulos de Heladas bajo el eje horizontal ---
 for (i in 1:12) {
-  if (tmin[i] < 0) {
+  if (tmin[i] <= 0) {
     # Heladas seguras (tmin media < 0 °C): Azul sólido
     rect(xleft = i - 0.5, ybottom = -2.5, xright = i + 0.5, ytop = 0, 
          col = "#0052CC", border = "black", xpd = TRUE)
-  } else if (tminabs[i] < 0) {
+  } else if (tminabs[i] <= 0) {
     # Heladas probables (tmin absoluta < 0 °C): Azul claro / achurado
     rect(xleft = i - 0.5, ybottom = -2.5, xright = i + 0.5, ytop = 0, 
          col = adjustcolor("#0052CC", alpha.f = 0.3), density = 15, angle = 45, 
