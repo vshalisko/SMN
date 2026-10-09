@@ -1,8 +1,10 @@
 ---
 title: "Climograma de Walter-Lieth para Tacambaro"
 output: html_document
+author: "Viacheslav Shalisko"
 date: "2023-03-06"
 ---
+
 
 ## Datos climaticos
 
