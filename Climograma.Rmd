@@ -1,0 +1,152 @@
+---
+title: "Climograma de Walter-Lieth para Tacambaro"
+output: html_document
+date: "2023-03-06"
+---
+
+## Datos climaticos
+
+```{r data}
+nombre <- "Tacambaro, Mich. (00016123 TACAMBARO)"
+periodo <- "1981-2010"
+elevacion <- 1640
+
+prec <- c(21.4,14.0,6.3,4.5,49.3,204.5,285.4,226.7,233.8,94.2,23.4,4.7)
+tmin <- c(7.1,7.5,8.8,10.5,11.9,12,11.5,11.5,11.4,10.8,9.2,7.8)
+tmax <- c(27.2,28,30.2,32.1,32.4,29.4,27.6,27.6,26.9,27.7,28,27.4)
+tminabs <- c(0,0,1,4,4,5,5,1,6,4,3,1)
+tmaxabs <- c(33,34,37,40,44,44,38,38,35,39,34,37)
+
+meses <- c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
+```
+
+## Definición de variables
+
+```{r}
+# --- 2. Cálculos generales ---
+tmedia <- (tmax + tmin)/2
+tdif <- (tmax - tmin)
+tdif_prom <- round(mean(tdif), 1)
+temp_prom <- round(mean(tmedia), 1)
+prec_anual <- round(sum(prec), 0)
+max_tmax <- max(tmax)
+min_tmin <- min(tmin)
+
+# --- 2. Escala Gaussen-Walter e Interpolación Densa ---
+# Transformación de precipitación a escala de temperatura:
+# 0 a 100 mm -> 0 a 50°C (relación 2:1)
+# > 100 mm -> escala reducida (10 mm extra = 2°C)
+p_escala <- ifelse(prec <= 100, prec / 2, 50 + (prec - 100) / 10)
+
+# Secuancias de valores para los poligonos de relleno
+xd <- seq(1, 12, length.out = 500)
+td <- approx(1:12, tmedia, xout = xd)$y
+pd <- approx(1:12, p_escala, xout = xd)$y
+```
+
+## Climograma
+
+```{r climograma, fig.width=7, fig.height = 6}
+# --- 3. Configuración del Gráfico ---
+par(mar = c(4, 6.5, 4, 4.5), mgp = c(2.5, 0.7, 0), cex=0.8)
+
+plot(1:12, tmedia, type = "n", xlim = c(0.5, 12.5), ylim = c(0, max(c(p_escala, 70))),
+     axes = FALSE, xlab = "", ylab = "")
+
+# Colores semitransparentes
+col_arido  <- adjustcolor("#D92121", alpha.f = 0.35) # Rojo semitransparente (Árido)
+col_humedo <- adjustcolor("#0052CC", alpha.f = 0.35) # Azul semitransparente (Húmedo)
+col_super  <- adjustcolor("#0052CC", alpha.f = 0.85) # Azul intesificado (Superhúmedo)
+
+# --- 4. Relleno Uniforme de Áreas ---
+# A) Período árido (T > P)
+m_arid <- td >= pd
+polygon(c(xd[m_arid], rev(xd[m_arid])), 
+        c(td[m_arid], rev(pd[m_arid])), 
+        col = col_arido, border = NA,
+        density = 15, angle = 90)
+
+# B) Período húmedo (P > T, hasta 100 mm / 50°C)
+m_humid <- pd >= td
+p_lim <- pmin(pd, 50)
+polygon(c(xd[m_humid], rev(xd[m_humid])), 
+        c(p_lim[m_humid], rev(td[m_humid])), 
+        col = col_humedo, border = NA,
+        density = 15, angle = 90)
+
+# C) Período superhúmedo (> 100 mm / 50°C)
+m_super <- pd >= 50
+polygon(c(xd[m_super], rev(xd[m_super])), 
+        c(pd[m_super], rep(50, sum(m_super))), 
+        col = col_super, border = NA)
+
+# --- 5. Rectángulos de Heladas bajo el eje horizontal ---
+for (i in 1:12) {
+  if (tmin[i] < 0) {
+    # Heladas seguras (tmin media < 0 °C): Azul sólido
+    rect(xleft = i - 0.5, ybottom = -2.5, xright = i + 0.5, ytop = 0, 
+         col = "#0052CC", border = "black", xpd = TRUE)
+  } else if (tminabs[i] < 0) {
+    # Heladas probables (tmin absoluta < 0 °C): Azul claro / achurado
+    rect(xleft = i - 0.5, ybottom = -2.5, xright = i + 0.5, ytop = 0, 
+         col = adjustcolor("#0052CC", alpha.f = 0.3), density = 15, angle = 45, 
+         border = "black", xpd = TRUE)
+  }
+}
+
+# --- 6. Líneas, Ejes y Encabezados ---
+#abline(h = 50, col = "black", lwd = 1)
+abline(h = 0, col = "black", lwd = 1)
+lines(1:12, p_escala, col = "#0052CC", lwd = 2)
+lines(1:12, tmedia, col = "#D92121", lwd = 2)
+
+# Ejes
+axis(1, at = 1:12, labels = meses, cex.axis = 1.1)
+axis(2, at = c(seq(0, 50, 10)), col.axis = "#D92121", las = 1)
+axis(4, at = c(seq(0, 50, 10), 60, 70), labels = c(seq(0, 100, 20), 200, 300), col.axis = "#0052CC", las = 1)
+
+# Etiquetas de unidades
+mtext("°C", side = 2, at = 74, col = "#D92121", line = 1, las = 1)
+mtext("mm", side = 4, at = 74, col = "#0052CC", line = 1, las = 1)
+
+# Marco exterior
+axis(2, at = c(0, 70), labels = FALSE)
+axis(4, at = c(0, 70), labels = FALSE)
+
+# Títulos y Metadatos
+mtext(paste0(nombre, " (", elevacion, " m)"), side = 3, line = 2.5, adj = 0)
+mtext(paste0("[",periodo,"]"), side = 3, line = 1, adj = 0)
+mtext(substitute(paste("T"["media"],"=", Tmean, "°C"),
+                 list(Tmean=temp_prom)),
+      side = 3, line = 2.5, adj = 1)
+mtext(substitute(paste("P"["anual"]," = ", P, " mm"),
+                 list(P=prec_anual)),
+      side = 3, line = 1, adj = 1)
+
+# Indicadores laterales Max/Min
+## Maximo absoluto
+mtext(expression("T"["max"]), side = 2, at = 37, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", max(tmax)), side = 2, at = 34, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Maximo mensual
+mtext(expression("T"["min"]), side = 2, at = 17, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", min(tmin)), side = 2, at = 14, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Rango diurno
+mtext(expression("T"["dif"]), side = 2, at = 27, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", mean(tdif)), side = 2, at = 24, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Minimo mensual
+mtext(expression("T"["max abs"]), side = 2, at = 47, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", max(tmaxabs)), side = 2, at = 44, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Minimo absoluto
+mtext(expression("T"["min abs"]), side = 2, at = 7, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", min(tminabs)), side = 2, at = 4, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+```
