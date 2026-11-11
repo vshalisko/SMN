@@ -1,0 +1,166 @@
+---
+title: "Climograma Puerto Vallarta"
+author: "Viacheslav Shalsiko"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## Preparar datos
+
+```{r}
+nombre <- "Puerto Vallarta"
+periodo <- "1961-1990"
+elevacion <- 10
+
+prec <- c(29.2,8.6,6.4,3.5,10.4,194.6,335.3,320.6,369.8,113.8,13.4,23.3)
+tmin <- c(17,16.7,17.1,17.8,20.7,23.1,23.4,23.4,23.3,22.5,20,18.4)
+tmax <- c(28.6,28.8,29,29.9,31.2,32.3,33.4,33.7,33.5,33.5,32,29.6)
+tminabs <- c(12,11,10,0.5,15,18,20,20,20,18.5,10,10)
+tmaxabs <- c(34,35,36,36,37.5,37,38,38,38,38.5,36,36)
+
+meses <- c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
+```
+
+## Generar climograma
+
+```{r climograma, fig.width=7, fig.height = 6}
+# --- 2. Cálculos generales ---
+tmedia <- (tmax + tmin)/2
+tdif <- (tmax - tmin)
+tdif_prom <- round(mean(tdif), 1)
+temp_prom <- round(mean(tmedia), 1)
+prec_anual <- round(sum(prec), 0)
+max_tmax <- max(tmax)
+min_tmin <- min(tmin)
+
+# --- 2. Escala Gaussen-Walter e Interpolación Densa ---
+# Transformación de precipitación a escala de temperatura:
+# 0 a 100 mm -> 0 a 50°C (relación 2:1)
+# > 100 mm -> escala reducida (10 mm extra = 2°C)
+p_escala <- ifelse(prec <= 100, prec / 2, 50 + (prec - 100) / 10)
+
+# Secuencias de valores para los poligonos de relleno
+xd <- seq(1, 12, length.out = 500)
+td <- approx(1:12, tmedia, xout = xd)$y
+pd <- approx(1:12, p_escala, xout = xd)$y
+
+
+# --- Función para evitar artefactos en polígonos divididos ---
+dibujar_poligonos_continuos <- function(x, y1, y2, condicion, ...) {
+  if (!any(condicion)) return() # Si no hay datos que cumplan, no hace nada
+  
+  idx <- which(condicion)
+  # Identifica grupos contiguos (cada vez que el salto de índice es > 1, crea un grupo nuevo)
+  grupos <- cumsum(c(1, diff(idx) > 1))
+  
+  # Dibuja un polígono independiente por cada grupo continuo detectado
+  for (g in unique(grupos)) {
+    idx_g <- idx[grupos == g]
+    polygon(c(x[idx_g], rev(x[idx_g])), 
+            c(y1[idx_g], rev(y2[idx_g])), 
+            ...)
+  }
+}
+
+
+
+# --- 3. Configuración del Gráfico ---
+par(mar = c(4, 6.5, 4, 4.5), mgp = c(2.5, 0.7, 0), cex=0.8)
+
+plot(1:12, tmedia, type = "n", xlim = c(0.5, 12.5), ylim = c(0, max(c(p_escala, 70))),
+     axes = FALSE, xlab = "", ylab = "")
+
+# Colores semitransparentes
+col_arido  <- adjustcolor("#D92121", alpha.f = 0.35) # Rojo semitransparente (Árido)
+col_humedo <- adjustcolor("#0052CC", alpha.f = 0.35) # Azul semitransparente (Húmedo)
+col_super  <- adjustcolor("#0052CC", alpha.f = 0.85) # Azul intesificado (Superhúmedo)
+
+# --- 4. Relleno Uniforme de Áreas ---
+# A) Período árido (T > P)
+m_arid <- td >= pd
+dibujar_poligonos_continuos(x = xd, y1 = td, y2 = pd, condicion = m_arid,
+                            col = col_arido, border = NA, density = 15, angle = 90)
+
+# B) Período húmedo (P > T, hasta 100 mm / 50°C)
+m_humid <- pd >= td
+p_lim <- pmin(pd, 50)
+dibujar_poligonos_continuos(x = xd, y1 = p_lim, y2 = td, condicion = m_humid,
+                            col = col_humedo, border = NA, density = 15, angle = 90)
+
+# C) Período superhúmedo (> 100 mm / 50°C)
+m_super <- pd >= 50
+vec_50 <- rep(50, length(xd)) # Crear un vector constante de 50 para el límite inferior
+dibujar_poligonos_continuos(x = xd, y1 = pd, y2 = vec_50, condicion = m_super,
+                            col = col_super, border = NA)
+
+# --- 5. Rectángulos de Heladas bajo el eje horizontal ---
+for (i in 1:12) {
+  if (tmin[i] <= 0) {
+    # Heladas seguras (tmin media < 0 °C): Azul sólido
+    rect(xleft = i - 0.5, ybottom = -2.5, xright = i + 0.5, ytop = 0, 
+         col = "#0052CC", border = "black", xpd = TRUE)
+  } else if (tminabs[i] <= 0) {
+    # Heladas probables (tmin absoluta < 0 °C): Azul claro / achurado
+    rect(xleft = i - 0.5, ybottom = -2.5, xright = i + 0.5, ytop = 0, 
+         col = adjustcolor("#0052CC", alpha.f = 0.3), density = 15, angle = 45, 
+         border = "black", xpd = TRUE)
+  }
+}
+
+# --- 6. Líneas, Ejes y Encabezados ---
+#abline(h = 50, col = "black", lwd = 1)
+abline(h = 0, col = "black", lwd = 1)
+lines(1:12, p_escala, col = "#0052CC", lwd = 2)
+lines(1:12, tmedia, col = "#D92121", lwd = 2)
+
+# Ejes
+axis(1, at = 1:12, labels = meses, cex.axis = 1.1)
+axis(2, at = c(seq(0, 50, 10)), col.axis = "#D92121", las = 1)
+axis(4, at = c(seq(0, 50, 10), 60, 70), labels = c(seq(0, 100, 20), 200, 300), col.axis = "#0052CC", las = 1)
+
+# Etiquetas de unidades
+mtext("°C", side = 2, at = 74, col = "#D92121", line = 1, las = 1)
+mtext("mm", side = 4, at = 74, col = "#0052CC", line = 1, las = 1)
+
+# Marco exterior
+axis(2, at = c(0, 70), labels = FALSE)
+axis(4, at = c(0, 70), labels = FALSE)
+
+# Títulos y Metadatos
+mtext(paste0(nombre, " (", elevacion, " m)"), side = 3, line = 2.5, adj = 0)
+mtext(paste0("[",periodo,"]"), side = 3, line = 1, adj = 0)
+mtext(substitute(paste("T"["media"],"=", Tmean, "°C"),
+                 list(Tmean=temp_prom)),
+      side = 3, line = 2.5, adj = 1)
+mtext(substitute(paste("P"["anual"]," = ", P, " mm"),
+                 list(P=prec_anual)),
+      side = 3, line = 1, adj = 1)
+
+# Indicadores laterales Max/Min
+## Maximo absoluto
+mtext(expression("T"["max"]), side = 2, at = 37, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", max(tmax)), side = 2, at = 34, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Maximo mensual
+mtext(expression("T"["min"]), side = 2, at = 17, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", min(tmin)), side = 2, at = 14, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Rango diurno
+mtext(expression("T"["dif"]), side = 2, at = 27, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", mean(tdif)), side = 2, at = 24, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Minimo mensual
+mtext(expression("T"["max abs"]), side = 2, at = 47, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", max(tmaxabs)), side = 2, at = 44, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+## Minimo absoluto
+mtext(expression("T"["min abs"]), side = 2, at = 7, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+mtext(sprintf("%.1f", min(tminabs)), side = 2, at = 4, 
+      line = 2.5, las = 1, adj = 1, cex = 0.9)
+
+```
